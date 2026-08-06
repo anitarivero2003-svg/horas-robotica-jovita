@@ -1,18 +1,36 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-AR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#5b4bdb" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="description" content="Registro privado de horas trabajadas de la Escuela de Robótica Jovita." />
+  <meta name="theme-color" content="#5b21b6" />
+  <meta name="color-scheme" content="light" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Horas Jovita" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/styles.css" />
   <title>Horas Robótica Jovita</title>
 </head>
 <body>
   <main id="app" class="app-shell"></main>
+
+  <button id="installAppButton" class="install-fab" type="button" hidden>
+    <span aria-hidden="true">📲</span>
+    <span>Instalar app</span>
+  </button>
+
+  <div id="networkNotice" class="network-notice" role="status" hidden>
+    Sin conexión. Podés abrir la app, pero necesitás internet para guardar horas.
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

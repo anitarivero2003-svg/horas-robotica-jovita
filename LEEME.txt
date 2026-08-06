@@ -1,0 +1,30 @@
+ACTUALIZACIÓN — DISEÑO + INSTALACIÓN EN EL CELULAR
+
+Este paquete conserva:
+- Inicio de sesión y recuperación de contraseña.
+- Privacidad: cada empleada ve solo sus horas.
+- Ana ve la planilla completa y descarga el Excel.
+- Período automático del día 20 al día 20.
+- Fila fija de Bruno: “cobra por mes”.
+
+Además agrega:
+- Diseño más colorido y moderno.
+- Ícono propio de la aplicación.
+- Instalación como app en Android.
+- Instrucciones dentro de la app para iPhone.
+- Service worker y manifest PWA.
+- Aviso cuando no hay internet.
+
+CÓMO ACTUALIZAR EN GITHUB
+1. Extraer este ZIP.
+2. Entrar al repositorio horas-robotica-jovita.
+3. Add file > Upload files.
+4. Seleccionar TODOS los archivos de esta carpeta.
+5. Confirmar que index.html, app.js, styles.css, manifest.webmanifest,
+   sw.js, vercel.json y los tres PNG queden en la raíz.
+6. Commit changes.
+7. Esperar que Vercel diga Ready.
+8. En el celular, cerrar y volver a abrir la página. Si se ve la versión vieja,
+   actualizar la página una vez.
+
+No reemplazar ni borrar config.js. Este paquete no lo incluye.
