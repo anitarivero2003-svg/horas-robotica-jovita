@@ -1,29 +1,33 @@
-const CACHE_NAME = 'horas-jovita-v5';
-const APP_SHELL = [
+const CACHE_NAME = 'horas-jovita-v11';
+const CORE_FILES = [
   '/',
   '/index.html',
-  '/styles.css?v=5',
-  '/app.js?v=5',
-  '/config.js',
-  '/manifest.json?v=5',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/apple-touch-icon.png'
+  '/styles.css?v=11',
+  '/app.js?v=11',
+  '/config.js?v=11',
+  '/manifest.webmanifest?v=11',
+  '/icon-192.png?v=11'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    // Un archivo temporalmente inaccesible no debe hacer fallar toda la instalación.
-    await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
+    await Promise.allSettled(
+      CORE_FILES.map(async (url) => {
+        const response = await fetch(url, { cache: 'reload' });
+        if (response.ok) await cache.put(url, response.clone());
+      })
+    );
     await self.skipWaiting();
   })());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    const names = await caches.keys();
+    await Promise.all(
+      names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+    );
     await self.clients.claim();
   })());
 });
@@ -38,12 +42,12 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const fresh = await fetch(request);
+        const fresh = await fetch(request, { cache: 'no-store' });
         const cache = await caches.open(CACHE_NAME);
         cache.put('/', fresh.clone());
         return fresh;
       } catch {
-        return (await caches.match('/')) || (await caches.match('/index.html'));
+        return (await caches.match('/')) || Response.error();
       }
     })());
     return;
@@ -51,14 +55,16 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith((async () => {
     const cached = await caches.match(request);
-    const network = fetch(request).then(async (response) => {
-      if (response && response.ok) {
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(request, response.clone());
-      }
-      return response;
-    }).catch(() => null);
+    const refresh = fetch(request, { cache: 'no-cache' })
+      .then(async (response) => {
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(request, response.clone());
+        }
+        return response;
+      })
+      .catch(() => null);
 
-    return cached || await network || new Response('', { status: 504 });
+    return cached || (await refresh) || Response.error();
   })());
 });

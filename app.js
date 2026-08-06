@@ -138,10 +138,10 @@ function showInfoModal(title, bodyHtml) {
 
 function showInstallInstructions() {
   if (isIOS()) {
-    showInfoModal('Agregar al inicio del iPhone', `
-      <p>Abrí esta página con <b>Safari</b> y seguí estos pasos:</p>
+    showInfoModal('Guardar en el iPhone', `
+      <p>Abrí la página con <b>Safari</b> y seguí estos pasos:</p>
       <ol class="install-steps">
-        <li>Tocá el botón <b>Compartir</b>.</li>
+        <li>Tocá <b>Compartir</b>.</li>
         <li>Elegí <b>Añadir a pantalla de inicio</b>.</li>
         <li>Tocá <b>Añadir</b>.</li>
       </ol>
@@ -149,9 +149,26 @@ function showInstallInstructions() {
     return;
   }
 
-  showInfoModal('Preparando la instalación', `
-    <p>Chrome todavía no habilitó el instalador.</p>
-    <p>Cerrá esta pestaña, abrí nuevamente la aplicación desde Chrome y esperá unos segundos. El botón aparecerá solamente cuando pueda instalar de verdad.</p>
+  if (isAndroid()) {
+    const browserNote = isInAppBrowser()
+      ? '<p><b>Primero:</b> abrí el enlace en Google Chrome, no dentro de WhatsApp.</p>'
+      : '';
+
+    showInfoModal('Guardar en el celular', `
+      ${browserNote}
+      <p>No hace falta esperar. En Chrome:</p>
+      <ol class="install-steps">
+        <li>Tocá los tres puntitos <b>⋮</b>.</li>
+        <li>Entrá en <b>Instalar y crear acceso directo</b>.</li>
+        <li>Elegí <b>Instalar</b> o <b>Crear acceso directo</b>.</li>
+      </ol>
+      <p>Cuando Chrome habilite la instalación directa, este mismo botón abrirá la ventana de instalación automáticamente.</p>
+    `);
+    return;
+  }
+
+  showInfoModal('Guardar la aplicación', `
+    <p>Abrí el menú del navegador y elegí <b>Instalar aplicación</b> o <b>Crear acceso directo</b>.</p>
   `);
 }
 
@@ -176,10 +193,19 @@ async function requestInstall() {
 
 function updateInstallButton() {
   if (!installButton) return;
-  // En Android y computadoras se muestra solo cuando Chrome entregó
-  // el aviso real de instalación. En iPhone se muestra para explicar
-  // el procedimiento manual de Safari.
-  installButton.hidden = isStandalone() || (!deferredInstallPrompt && !isIOS());
+
+  const installed = isStandalone();
+  installButton.hidden = installed;
+  installButton.disabled = false;
+
+  const label = installButton.querySelector('span:last-child');
+  if (label) {
+    label.textContent = deferredInstallPrompt
+      ? 'INSTALAR AHORA'
+      : 'GUARDAR EN EL CELULAR';
+  }
+
+  installButton.classList.toggle('is-ready', Boolean(deferredInstallPrompt));
 }
 
 function updateNetworkNotice() {
@@ -189,23 +215,15 @@ function updateNetworkNotice() {
 
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
+
   try {
-    await navigator.serviceWorker.register('/sw.js?v=8', {
+    const registration = await navigator.serviceWorker.register('/sw.js?v=11', {
       scope: '/',
       updateViaCache: 'none'
     });
-    await navigator.serviceWorker.ready;
 
-    // En la primera visita, Chrome puede necesitar que el service worker
-    // ya controle la página antes de habilitar el instalador.
-    if (!navigator.serviceWorker.controller && !sessionStorage.getItem('horas-sw-reload-v8')) {
-      sessionStorage.setItem('horas-sw-reload-v8', '1');
-      const reloadWhenReady = () => window.location.reload();
-      navigator.serviceWorker.addEventListener('controllerchange', reloadWhenReady, { once: true });
-      setTimeout(() => {
-        if (!navigator.serviceWorker.controller) window.location.reload();
-      }, 1800);
-    }
+    // Busca actualizaciones sin recargar la página ni hacer esperar a la usuaria.
+    registration.update().catch(() => {});
   } catch (error) {
     console.warn('No se pudo registrar el service worker:', error);
   }
@@ -214,9 +232,6 @@ async function registerServiceWorker() {
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
-  if (installButton) {
-    installButton.querySelector('span:last-child').textContent = 'Instalar en el celular';
-  }
   updateInstallButton();
 });
 
@@ -727,7 +742,44 @@ function openHoursModal(date, value) {
   };
 }
 
-function exportExcel() {
+let xlsxLoaderPromise = null;
+
+function loadXlsxLibrary() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (xlsxLoaderPromise) return xlsxLoaderPromise;
+
+  xlsxLoaderPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    script.async = true;
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error('No se pudo cargar el generador de Excel. Revisá la conexión.'));
+    document.head.appendChild(script);
+  });
+
+  return xlsxLoaderPromise;
+}
+
+async function exportExcel() {
+  const button = document.getElementById('exportExcel');
+  const originalText = button?.innerHTML;
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'PREPARANDO EXCEL…';
+  }
+
+  try {
+    await loadXlsxLibrary();
+  } catch (error) {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalText || '📊 Descargar Excel';
+    }
+    alert(error.message);
+    return;
+  }
+
   const days = daysBetween(currentPeriod.start, currentPeriod.end);
   const map = entryMap();
 
@@ -767,6 +819,11 @@ function exportExcel() {
     workbook,
     `Horas_${iso(currentPeriod.start)}_al_${iso(currentPeriod.end)}.xlsx`
   );
+
+  if (button) {
+    button.disabled = false;
+    button.innerHTML = originalText || '📊 Descargar Excel';
+  }
 }
 
 init();

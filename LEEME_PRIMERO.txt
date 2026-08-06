@@ -1,0 +1,23 @@
+ACTUALIZACIÓN RÁPIDA — HORAS ROBÓTICA JOVITA
+
+Esta versión conserva:
+- período del 20 al 20;
+- privacidad de cada compañera;
+- panel de Ana y Excel general;
+- fila fija de Bruno “cobra por mes”;
+- recuperación de contraseña;
+- corrección y borrado de horas.
+
+También corrige:
+- el botón “GUARDAR EN EL CELULAR” vuelve a aparecer siempre;
+- no obliga a esperar 30 segundos;
+- si Chrome permite instalación directa, abre el instalador al tocarlo;
+- si Chrome no lo permite, muestra el camino actual del menú;
+- la página abre más rápido porque Excel se carga solamente cuando se usa.
+
+PARA SUBIR:
+1. En GitHub: Add file > Upload files.
+2. Subir TODOS los archivos de esta carpeta a la raíz del repositorio.
+3. Confirmar con Commit changes.
+4. Esperar que Vercel diga Ready.
+5. En el celular, cerrar la pestaña vieja y abrir de nuevo la dirección.

@@ -520,18 +520,6 @@ button{touch-action:manipulation}
   animation:installPulse 2.6s ease-in-out infinite;
 }
 @keyframes installPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-.install-fab.is-preparing{
-  color:#4b3f60;
-  background:linear-gradient(135deg,#f5efff,#e7ddff);
-  border:1px solid #d7c6fa;
-  box-shadow:0 10px 24px rgba(91,33,182,.16);
-  animation:none;
-}
-.install-fab.is-preparing span:first-child{
-  animation:installSpin 1.4s linear infinite;
-}
-@keyframes installSpin{to{transform:rotate(360deg)}}
-
 .install-steps{
   margin:16px 0;
   padding:0;
@@ -626,3 +614,11 @@ button{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}
 }
+
+/* Instalación v11: el botón se ve enseguida y no obliga a esperar. */
+.install-fab[hidden]{display:none!important}
+.install-fab.is-ready{
+  background:linear-gradient(135deg,#16a34a,#2563eb);
+  box-shadow:0 16px 38px rgba(37,99,235,.32);
+}
+.install-fab:disabled{opacity:.65;cursor:wait}

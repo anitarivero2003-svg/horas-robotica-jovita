@@ -4,24 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Registro privado de horas trabajadas de la Escuela de Robótica Jovita." />
+  <meta name="application-name" content="Horas Robótica Jovita" />
   <meta name="theme-color" content="#5b21b6" />
   <meta name="color-scheme" content="light" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Horas Jovita" />
-  <link rel="manifest" href="/manifest.json?v=5" />
-  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/styles.css?v=5" />
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="manifest" href="/manifest.webmanifest?v=11" />
+  <link rel="icon" href="/icon-192.png?v=11" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=11" />
+  <link rel="stylesheet" href="/styles.css?v=11" />
   <title>Horas Robótica Jovita</title>
 </head>
 <body>
   <main id="app" class="app-shell"></main>
 
-  <button id="installAppButton" class="install-fab" type="button" hidden>
+  <button id="installAppButton" class="install-fab" type="button">
     <span aria-hidden="true">📲</span>
-    <span>Instalar app</span>
+    <span>GUARDAR EN EL CELULAR</span>
   </button>
 
   <div id="networkNotice" class="network-notice" role="status" hidden>
@@ -29,33 +32,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="/config.js"></script>
-  <script>
-    // Registra y actualiza la app antes de iniciar la interfaz.
-    window.HORAS_PWA_READY = (async () => {
-      if (!("serviceWorker" in navigator)) return false;
-      try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-          updateViaCache: 'none'
-        });
-        await registration.update();
-        await navigator.serviceWorker.ready;
-
-        // En algunos Android la primera visita instala el service worker,
-        // pero Chrome recién evalúa la instalación en la siguiente carga.
-        if (!navigator.serviceWorker.controller && !sessionStorage.getItem('horas-pwa-reload-v5')) {
-          sessionStorage.setItem('horas-pwa-reload-v5', '1');
-          setTimeout(() => window.location.reload(), 350);
-        }
-        return true;
-      } catch (error) {
-        console.error('No se pudo preparar la instalación:', error);
-        return false;
-      }
-    })();
-  </script>
-  <script src="/app.js?v=5"></script>
+  <script src="/config.js?v=11"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>
