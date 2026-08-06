@@ -1,0 +1,8 @@
+{
+  "name": "Horas Robótica Jovita",
+  "short_name": "Horas Jovita",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#5b4bdb"
+}
