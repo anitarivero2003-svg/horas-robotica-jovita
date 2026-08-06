@@ -136,29 +136,6 @@ function showInfoModal(title, bodyHtml) {
   });
 }
 
-function setInstallButtonState(state) {
-  if (!installButton) return;
-
-  const icon = installButton.querySelector('span:first-child');
-  const label = installButton.querySelector('span:last-child');
-  installButton.dataset.state = state;
-  installButton.classList.toggle('is-preparing', state === 'preparing');
-
-  if (state === 'ready') {
-    if (icon) icon.textContent = '📲';
-    if (label) label.textContent = 'Instalar app';
-    installButton.title = 'Instalar Horas Robótica Jovita';
-  } else if (state === 'ios') {
-    if (icon) icon.textContent = '➕';
-    if (label) label.textContent = 'Agregar al inicio';
-    installButton.title = 'Agregar a la pantalla de inicio';
-  } else {
-    if (icon) icon.textContent = '⏳';
-    if (label) label.textContent = 'Preparando app…';
-    installButton.title = 'Chrome está preparando la instalación';
-  }
-}
-
 function showInstallInstructions() {
   if (isIOS()) {
     showInfoModal('Agregar al inicio del iPhone', `
@@ -172,10 +149,9 @@ function showInstallInstructions() {
     return;
   }
 
-  showInfoModal('Chrome está preparando la app', `
-    <p>No tenés que buscar ninguna opción en los tres puntitos.</p>
-    <p>Dejá esta pantalla abierta durante <b>30 segundos</b> y tocá cualquier parte de la aplicación. Cuando Chrome la habilite, el botón cambiará de <b>“Preparando app…”</b> a <b>“Instalar app”</b>.</p>
-    <p>Después tocás ese mismo botón y aparecerá la ventana real de Android para instalarla.</p>
+  showInfoModal('Preparando la instalación', `
+    <p>Chrome todavía no habilitó el instalador.</p>
+    <p>Cerrá esta pestaña, abrí nuevamente la aplicación desde Chrome y esperá unos segundos. El botón aparecerá solamente cuando pueda instalar de verdad.</p>
   `);
 }
 
@@ -185,49 +161,25 @@ async function requestInstall() {
     return;
   }
 
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    const choice = await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    updateInstallButton();
-    if (choice.outcome !== 'accepted') {
-      showInfoModal('Instalación cancelada', '<p>Cuando quieras, podés volver a tocar <b>Instalar app</b>.</p>');
-    }
+  if (!deferredInstallPrompt) {
+    showInstallInstructions();
     return;
   }
 
-  showInstallInstructions();
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  if (choice.outcome === 'accepted') {
+    deferredInstallPrompt = null;
+    updateInstallButton();
+  }
 }
 
 function updateInstallButton() {
   if (!installButton) return;
-
-  if (isStandalone()) {
-    installButton.hidden = true;
-    return;
-  }
-
-  installButton.hidden = false;
-  if (isIOS()) {
-    setInstallButtonState('ios');
-  } else if (deferredInstallPrompt) {
-    setInstallButtonState('ready');
-  } else {
-    setInstallButtonState('preparing');
-  }
-}
-
-async function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return false;
-  try {
-    if (window.HORAS_PWA_READY) await window.HORAS_PWA_READY;
-    const registration = await navigator.serviceWorker.ready;
-    await registration.update();
-    return true;
-  } catch (error) {
-    console.warn('No se pudo registrar el service worker:', error);
-    return false;
-  }
+  // En Android y computadoras se muestra solo cuando Chrome entregó
+  // el aviso real de instalación. En iPhone se muestra para explicar
+  // el procedimiento manual de Safari.
+  installButton.hidden = isStandalone() || (!deferredInstallPrompt && !isIOS());
 }
 
 function updateNetworkNotice() {
@@ -235,15 +187,38 @@ function updateNetworkNotice() {
   networkNotice.hidden = window.navigator.onLine;
 }
 
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('/sw.js?v=8', {
+      scope: '/',
+      updateViaCache: 'none'
+    });
+    await navigator.serviceWorker.ready;
+
+    // En la primera visita, Chrome puede necesitar que el service worker
+    // ya controle la página antes de habilitar el instalador.
+    if (!navigator.serviceWorker.controller && !sessionStorage.getItem('horas-sw-reload-v8')) {
+      sessionStorage.setItem('horas-sw-reload-v8', '1');
+      const reloadWhenReady = () => window.location.reload();
+      navigator.serviceWorker.addEventListener('controllerchange', reloadWhenReady, { once: true });
+      setTimeout(() => {
+        if (!navigator.serviceWorker.controller) window.location.reload();
+      }, 1800);
+    }
+  } catch (error) {
+    console.warn('No se pudo registrar el service worker:', error);
+  }
+}
+
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
+  if (installButton) {
+    installButton.querySelector('span:last-child').textContent = 'Instalar en el celular';
+  }
   updateInstallButton();
 });
-
-// Chrome exige al menos una interacción y unos segundos de uso antes de ofrecer la instalación.
-window.addEventListener('pointerdown', () => updateInstallButton(), { once: true });
-setTimeout(updateInstallButton, 31000);
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
@@ -646,12 +621,15 @@ function renderAdminTable(days, map) {
 }
 
 function openHoursModal(date, value) {
+  const hasSavedHours = value !== undefined;
   const modal = document.createElement('div');
   modal.className = 'modal';
   modal.innerHTML = `
     <div class="modal-card" role="dialog" aria-modal="true">
       <h2>Horas del ${date.split('-').reverse().join('/')}</h2>
-      <p>Elegí una opción rápida o escribí otra cantidad, por ejemplo 2,5.</p>
+      <p>${hasSavedHours
+        ? 'Podés corregir la cantidad o borrar este registro si elegiste mal el día.'
+        : 'Elegí una opción rápida o escribí otra cantidad, por ejemplo 2,5.'}</p>
 
       <div class="quick">
         ${[1, 2, 3, 4].map((hours) => `
@@ -662,9 +640,17 @@ function openHoursModal(date, value) {
       <label class="label" for="hoursInput">Cantidad de horas</label>
       <input id="hoursInput" class="field" inputmode="decimal"
         placeholder="Ejemplo: 3,5"
-        value="${value !== undefined ? String(value).replace('.', ',') : ''}" />
+        value="${hasSavedHours ? String(value).replace('.', ',') : ''}" />
 
-      <button id="saveHours" class="btn btn-primary" type="button">GUARDAR</button>
+      <button id="saveHours" class="btn btn-primary" type="button">
+        ${hasSavedHours ? 'GUARDAR CAMBIO' : 'GUARDAR'}
+      </button>
+      ${hasSavedHours ? `
+        <button id="deleteHours" class="btn btn-danger" type="button"
+          style="width:100%;margin-top:10px;">
+          BORRAR HORAS DE ESTE DÍA
+        </button>
+      ` : ''}
       <button id="cancelHours" class="btn btn-soft" type="button">Cancelar</button>
     </div>
   `;
@@ -679,14 +665,48 @@ function openHoursModal(date, value) {
 
   document.getElementById('cancelHours').onclick = () => modal.remove();
 
+  const deleteButton = document.getElementById('deleteHours');
+  if (deleteButton) {
+    deleteButton.onclick = async () => {
+      const confirmed = window.confirm(
+        `¿Borrar las horas cargadas del ${date.split('-').reverse().join('/')}?`
+      );
+
+      if (!confirmed) return;
+
+      deleteButton.disabled = true;
+      deleteButton.textContent = 'BORRANDO…';
+
+      const { error } = await client
+        .from('horas')
+        .delete()
+        .eq('usuario_id', profile.id)
+        .eq('fecha', date);
+
+      if (error) {
+        deleteButton.disabled = false;
+        deleteButton.textContent = 'BORRAR HORAS DE ESTE DÍA';
+        alert(`No se pudo borrar: ${error.message}`);
+        return;
+      }
+
+      modal.remove();
+      await loadApp(profile.id);
+    };
+  }
+
   document.getElementById('saveHours').onclick = async () => {
-    const raw = document.getElementById('hoursInput').value.replace(',', '.');
+    const raw = document.getElementById('hoursInput').value.trim().replace(',', '.');
     const valueToSave = Number(raw);
 
-    if (!Number.isFinite(valueToSave) || valueToSave < 0 || valueToSave > 24) {
-      alert('Escribí una cantidad entre 0 y 24.');
+    if (!raw || !Number.isFinite(valueToSave) || valueToSave <= 0 || valueToSave > 24) {
+      alert('Escribí una cantidad mayor que 0 y hasta 24 horas. Para borrar, usá el botón rojo.');
       return;
     }
+
+    const saveButton = document.getElementById('saveHours');
+    saveButton.disabled = true;
+    saveButton.textContent = 'GUARDANDO…';
 
     const { error } = await client
       .from('horas')
@@ -696,6 +716,8 @@ function openHoursModal(date, value) {
       );
 
     if (error) {
+      saveButton.disabled = false;
+      saveButton.textContent = hasSavedHours ? 'GUARDAR CAMBIO' : 'GUARDAR';
       alert(error.message);
       return;
     }
