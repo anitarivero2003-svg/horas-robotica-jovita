@@ -9,7 +9,8 @@ let profiles = [];
 let entries = [];
 let currentPeriod = getPeriod(new Date());
 let recoveryScreenActive = false;
-let deferredInstallPrompt = null;
+let deferredInstallPrompt = window.__PWA_INSTALL_PROMPT__ || null;
+let installRefreshInProgress = false;
 
 const FILA_MENSUAL_FIJA = { nombre: 'Bruno', texto: 'cobra por mes' };
 
@@ -106,17 +107,77 @@ function authLayout({ title, subtitle, content, message = '', success = false })
   `;
 }
 
+function installButtonLabel(text) {
+  const label = installButton?.querySelector('span:last-child');
+  if (label) label.textContent = text;
+}
+
 function updateInstallButton() {
   if (!installButton) return;
 
-  // El botón aparece únicamente cuando Chrome entrega el evento nativo de instalación.
-  installButton.hidden = isStandalone() || !deferredInstallPrompt;
-  installButton.disabled = false;
+  if (isStandalone()) {
+    installButton.hidden = true;
+    return;
+  }
+
+  installButton.hidden = false;
+  installButton.disabled = installRefreshInProgress;
+
+  if (deferredInstallPrompt || window.__PWA_INSTALL_PROMPT__) {
+    installButtonLabel('INSTALAR APLICACIÓN');
+    installButton.classList.add('is-ready');
+  } else if (installRefreshInProgress) {
+    installButtonLabel('PREPARANDO INSTALACIÓN…');
+    installButton.classList.remove('is-ready');
+  } else {
+    installButtonLabel('ACTIVAR INSTALACIÓN');
+    installButton.classList.remove('is-ready');
+  }
+}
+
+async function refreshPwaInstallation() {
+  if (installRefreshInProgress || isStandalone()) return;
+
+  installRefreshInProgress = true;
+  updateInstallButton();
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith('horas-robotica-jovita-'))
+          .map((key) => caches.delete(key))
+      );
+    }
+
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.register('/sw.js?v=13', {
+        scope: '/',
+        updateViaCache: 'none'
+      });
+      registration.update().catch(() => {});
+      await navigator.serviceWorker.ready;
+    }
+  } catch (error) {
+    console.warn('No se pudo actualizar la instalación PWA:', error);
+  }
+
+  const target = new URL(window.location.href);
+  target.searchParams.set('pwa', '13');
+  window.location.replace(target.toString());
 }
 
 async function requestInstall() {
-  if (!deferredInstallPrompt || isStandalone()) {
+  if (isStandalone()) {
     updateInstallButton();
+    return;
+  }
+
+  deferredInstallPrompt = deferredInstallPrompt || window.__PWA_INSTALL_PROMPT__;
+
+  if (!deferredInstallPrompt) {
+    await refreshPwaInstallation();
     return;
   }
 
@@ -127,6 +188,7 @@ async function requestInstall() {
     await deferredInstallPrompt.userChoice;
   } finally {
     deferredInstallPrompt = null;
+    window.__PWA_INSTALL_PROMPT__ = null;
     updateInstallButton();
   }
 }
@@ -140,13 +202,12 @@ async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
 
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js', {
+    const registration = await navigator.serviceWorker.register('/sw.js?v=13', {
       scope: '/',
       updateViaCache: 'none'
     });
-
-    await navigator.serviceWorker.ready;
     registration.update().catch(() => {});
+    await navigator.serviceWorker.ready;
     return registration;
   } catch (error) {
     console.warn('No se pudo registrar el service worker:', error);
@@ -154,18 +215,24 @@ async function registerServiceWorker() {
   }
 }
 
-window.addEventListener('beforeinstallprompt', (event) => {
-  // Evita el aviso automático y habilita nuestro botón solo cuando la app es instalable.
+function captureInstallPrompt(event) {
   event.preventDefault();
   deferredInstallPrompt = event;
+  window.__PWA_INSTALL_PROMPT__ = event;
+  updateInstallButton();
+}
+
+window.addEventListener('beforeinstallprompt', captureInstallPrompt);
+window.addEventListener('pwa-install-ready', () => {
+  deferredInstallPrompt = window.__PWA_INSTALL_PROMPT__ || deferredInstallPrompt;
   updateInstallButton();
 });
-
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
+  window.__PWA_INSTALL_PROMPT__ = null;
   updateInstallButton();
 });
-
+window.addEventListener('pwa-installed', updateInstallButton);
 window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButton);
 window.addEventListener('online', updateNetworkNotice);
 window.addEventListener('offline', updateNetworkNotice);
@@ -175,6 +242,10 @@ async function init() {
   updateInstallButton();
   updateNetworkNotice();
   registerServiceWorker();
+  setTimeout(() => {
+    deferredInstallPrompt = window.__PWA_INSTALL_PROMPT__ || deferredInstallPrompt;
+    updateInstallButton();
+  }, 1500);
 
   if (!configured()) return renderConfigHelp();
 
@@ -754,3 +825,5 @@ async function exportExcel() {
 }
 
 init();
+
+// PWA bootstrap version 13

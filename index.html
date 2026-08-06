@@ -11,30 +11,69 @@
   <meta name="background-color" content="#ffffff" />
   <meta name="color-scheme" content="light" />
   <meta name="format-detection" content="telephone=no" />
-
-  <!-- Integración como aplicación en Android y navegadores Chromium. -->
   <meta name="mobile-web-app-capable" content="yes" />
-
-  <!-- Compatibilidad de instalación en iPhone/iPad. -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Horas Jovita" />
 
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
-  <link rel="icon" href="/icon-512.png" sizes="512x512" type="image/png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-
+  <link rel="manifest" href="/manifest.webmanifest?v=13" />
+  <link rel="icon" href="/icon-192.png?v=13" sizes="192x192" type="image/png" />
+  <link rel="icon" href="/icon-512.png?v=13" sizes="512x512" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=13" sizes="180x180" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=13" />
+
+  <!--
+    Este bloque se ejecuta antes de Supabase y de app.js. Así Chrome no puede
+    lanzar beforeinstallprompt antes de que la aplicación empiece a escucharlo.
+  -->
+  <script>
+    (() => {
+      window.__PWA_INSTALL_PROMPT__ = null;
+
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        window.__PWA_INSTALL_PROMPT__ = event;
+        window.dispatchEvent(new CustomEvent('pwa-install-ready'));
+      });
+
+      window.addEventListener('appinstalled', () => {
+        window.__PWA_INSTALL_PROMPT__ = null;
+        window.dispatchEvent(new CustomEvent('pwa-installed'));
+      });
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js?v=13', {
+              scope: '/',
+              updateViaCache: 'none'
+            });
+
+            registration.update().catch(() => {});
+            await navigator.serviceWorker.ready;
+
+            // En la primera visita el SW puede quedar activo pero todavía no controlar
+            // la página. Una única recarga permite que Chrome evalúe la instalación.
+            if (!navigator.serviceWorker.controller
+                && !sessionStorage.getItem('pwa-controller-reload-v13')) {
+              sessionStorage.setItem('pwa-controller-reload-v13', '1');
+              window.location.reload();
+            }
+          } catch (error) {
+            console.warn('No se pudo preparar la instalación PWA:', error);
+          }
+        });
+      }
+    })();
+  </script>
 </head>
 <body>
   <main id="app" class="app-shell"></main>
 
-  <!-- Solo se muestra cuando Chrome confirma que la PWA puede instalarse. -->
-  <button id="installAppButton" class="install-fab" type="button" hidden>
+  <button id="installAppButton" class="install-fab" type="button">
     <span aria-hidden="true">📲</span>
-    <span>INSTALAR APLICACIÓN</span>
+    <span>PREPARANDO INSTALACIÓN…</span>
   </button>
 
   <div id="networkNotice" class="network-notice" role="status" hidden>
@@ -44,7 +83,7 @@
   <noscript>Necesitás activar JavaScript para usar Horas Robótica Jovita.</noscript>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/config.js"></script>
-  <script src="/app.js"></script>
+  <script src="/config.js?v=13"></script>
+  <script src="/app.js?v=13"></script>
 </body>
 </html>

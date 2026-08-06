@@ -1,74 +1,76 @@
-const CACHE_VERSION = 'horas-robotica-jovita-v12';
+const CACHE_VERSION = 'horas-robotica-jovita-v13';
 
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/config.js',
-  '/manifest.webmanifest',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-maskable-512.png',
-  '/apple-touch-icon.png'
+  '/styles.css?v=13',
+  '/app.js?v=13',
+  '/config.js?v=13',
+  '/manifest.webmanifest?v=13',
+  '/icon-192.png?v=13',
+  '/icon-512.png?v=13',
+  '/icon-maskable-512.png?v=13',
+  '/apple-touch-icon.png?v=13'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_VERSION);
+
+    // Un archivo opcional con problemas no debe impedir la instalación del SW.
+    await Promise.allSettled(
+      APP_SHELL.map(async (url) => {
+        const response = await fetch(url, { cache: 'reload' });
+        if (response.ok) await cache.put(url, response.clone());
+      })
+    );
+
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((key) => key.startsWith('horas-robotica-jovita-') && key !== CACHE_VERSION)
+        .map((key) => caches.delete(key))
+    );
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  // Los datos de Supabase y otros servicios externos siempre continúan por red.
+  // Supabase y cualquier servicio externo siempre siguen por la red.
   if (url.origin !== self.location.origin) return;
 
-  // Para navegación usamos red primero y la portada en caché como respaldo.
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put('/index.html', copy));
-          }
-          return response;
-        })
-        .catch(async () => (
-          (await caches.match('/index.html')) ||
-          (await caches.match('/')) ||
-          Response.error()
-        ))
-    );
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request, { cache: 'no-store' });
+        if (response.ok) {
+          const cache = await caches.open(CACHE_VERSION);
+          await cache.put('/index.html', response.clone());
+        }
+        return response;
+      } catch {
+        return (await caches.match('/index.html'))
+          || (await caches.match('/'))
+          || Response.error();
+      }
+    })());
     return;
   }
 
-  // Archivos estáticos: respuesta rápida desde caché y actualización en segundo plano.
   event.respondWith((async () => {
-    const cachedResponse = await caches.match(request);
-    const networkRequest = fetch(request)
+    const cached = await caches.match(request);
+    const network = fetch(request, { cache: 'no-cache' })
       .then(async (response) => {
         if (response.ok) {
           const cache = await caches.open(CACHE_VERSION);
@@ -78,11 +80,11 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => null);
 
-    if (cachedResponse) {
-      event.waitUntil(networkRequest);
-      return cachedResponse;
+    if (cached) {
+      event.waitUntil(network);
+      return cached;
     }
 
-    return (await networkRequest) || Response.error();
+    return (await network) || Response.error();
   })());
 });
