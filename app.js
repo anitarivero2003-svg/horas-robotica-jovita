@@ -136,6 +136,29 @@ function showInfoModal(title, bodyHtml) {
   });
 }
 
+function setInstallButtonState(state) {
+  if (!installButton) return;
+
+  const icon = installButton.querySelector('span:first-child');
+  const label = installButton.querySelector('span:last-child');
+  installButton.dataset.state = state;
+  installButton.classList.toggle('is-preparing', state === 'preparing');
+
+  if (state === 'ready') {
+    if (icon) icon.textContent = '📲';
+    if (label) label.textContent = 'Instalar app';
+    installButton.title = 'Instalar Horas Robótica Jovita';
+  } else if (state === 'ios') {
+    if (icon) icon.textContent = '➕';
+    if (label) label.textContent = 'Agregar al inicio';
+    installButton.title = 'Agregar a la pantalla de inicio';
+  } else {
+    if (icon) icon.textContent = '⏳';
+    if (label) label.textContent = 'Preparando app…';
+    installButton.title = 'Chrome está preparando la instalación';
+  }
+}
+
 function showInstallInstructions() {
   if (isIOS()) {
     showInfoModal('Agregar al inicio del iPhone', `
@@ -143,31 +166,16 @@ function showInstallInstructions() {
       <ol class="install-steps">
         <li>Tocá el botón <b>Compartir</b>.</li>
         <li>Elegí <b>Añadir a pantalla de inicio</b>.</li>
-        <li>Activá <b>Abrir como app web</b> y tocá <b>Añadir</b>.</li>
-      </ol>
-      <p>Después aparecerá el ícono de Horas Jovita junto a tus otras aplicaciones.</p>
-    `);
-    return;
-  }
-
-  if (isAndroid()) {
-    const browserNote = isInAppBrowser()
-      ? '<p><b>Importante:</b> primero abrí el enlace en Google Chrome; desde WhatsApp puede no aparecer la instalación.</p>'
-      : '';
-    showInfoModal('Instalar en Android', `
-      ${browserNote}
-      <p>En Google Chrome:</p>
-      <ol class="install-steps">
-        <li>Tocá los tres puntitos <b>⋮</b>.</li>
-        <li>Elegí <b>Instalar aplicación</b> o <b>Agregar a pantalla principal</b>.</li>
-        <li>Confirmá con <b>Instalar</b>.</li>
+        <li>Tocá <b>Añadir</b>.</li>
       </ol>
     `);
     return;
   }
 
-  showInfoModal('Instalar la aplicación', `
-    <p>Abrí el menú del navegador y elegí <b>Instalar Horas Robótica Jovita</b> o <b>Agregar a pantalla principal</b>.</p>
+  showInfoModal('Chrome está preparando la app', `
+    <p>No tenés que buscar ninguna opción en los tres puntitos.</p>
+    <p>Dejá esta pantalla abierta durante <b>30 segundos</b> y tocá cualquier parte de la aplicación. Cuando Chrome la habilite, el botón cambiará de <b>“Preparando app…”</b> a <b>“Instalar app”</b>.</p>
+    <p>Después tocás ese mismo botón y aparecerá la ventana real de Android para instalarla.</p>
   `);
 }
 
@@ -180,9 +188,10 @@ async function requestInstall() {
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
     const choice = await deferredInstallPrompt.userChoice;
-    if (choice.outcome === 'accepted') {
-      deferredInstallPrompt = null;
-      updateInstallButton();
+    deferredInstallPrompt = null;
+    updateInstallButton();
+    if (choice.outcome !== 'accepted') {
+      showInfoModal('Instalación cancelada', '<p>Cuando quieras, podés volver a tocar <b>Instalar app</b>.</p>');
     }
     return;
   }
@@ -192,7 +201,33 @@ async function requestInstall() {
 
 function updateInstallButton() {
   if (!installButton) return;
-  installButton.hidden = isStandalone();
+
+  if (isStandalone()) {
+    installButton.hidden = true;
+    return;
+  }
+
+  installButton.hidden = false;
+  if (isIOS()) {
+    setInstallButtonState('ios');
+  } else if (deferredInstallPrompt) {
+    setInstallButtonState('ready');
+  } else {
+    setInstallButtonState('preparing');
+  }
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return false;
+  try {
+    if (window.HORAS_PWA_READY) await window.HORAS_PWA_READY;
+    const registration = await navigator.serviceWorker.ready;
+    await registration.update();
+    return true;
+  } catch (error) {
+    console.warn('No se pudo registrar el service worker:', error);
+    return false;
+  }
 }
 
 function updateNetworkNotice() {
@@ -200,20 +235,15 @@ function updateNetworkNotice() {
   networkNotice.hidden = window.navigator.onLine;
 }
 
-async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  try {
-    await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
-  } catch (error) {
-    console.warn('No se pudo registrar el service worker:', error);
-  }
-}
-
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
   updateInstallButton();
 });
+
+// Chrome exige al menos una interacción y unos segundos de uso antes de ofrecer la instalación.
+window.addEventListener('pointerdown', () => updateInstallButton(), { once: true });
+setTimeout(updateInstallButton, 31000);
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;

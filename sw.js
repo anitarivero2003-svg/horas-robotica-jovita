@@ -1,31 +1,31 @@
-const CACHE_NAME = 'horas-jovita-v3';
+const CACHE_NAME = 'horas-jovita-v5';
 const APP_SHELL = [
   '/',
-  '/styles.css',
-  '/app.js',
+  '/index.html',
+  '/styles.css?v=5',
+  '/app.js?v=5',
   '/config.js',
-  '/manifest.webmanifest',
+  '/manifest.json?v=5',
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Un archivo temporalmente inaccesible no debe hacer fallar toda la instalación.
+    await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -35,20 +35,30 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        if (request.mode === 'navigate') return caches.match('/');
-        throw new Error('Sin conexión y recurso no disponible en caché.');
-      })
-  );
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const fresh = await fetch(request);
+        const cache = await caches.open(CACHE_NAME);
+        cache.put('/', fresh.clone());
+        return fresh;
+      } catch {
+        return (await caches.match('/')) || (await caches.match('/index.html'));
+      }
+    })());
+    return;
+  }
+
+  event.respondWith((async () => {
+    const cached = await caches.match(request);
+    const network = fetch(request).then(async (response) => {
+      if (response && response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        cache.put(request, response.clone());
+      }
+      return response;
+    }).catch(() => null);
+
+    return cached || await network || new Response('', { status: 504 });
+  })());
 });

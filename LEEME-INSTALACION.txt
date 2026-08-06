@@ -1,0 +1,13 @@
+ACTUALIZACIÓN DE INSTALACIÓN REAL - HORAS ROBÓTICA JOVITA
+
+Subí a GitHub todos los archivos de esta carpeta. Reemplazan los anteriores.
+NO borres ni reemplaces config.js.
+
+Después de que Vercel diga Ready:
+1. Abrí la app en Chrome.
+2. Actualizá una vez la página.
+3. Dejala abierta 30 segundos y tocá cualquier parte.
+4. El botón inferior cambiará de “Preparando app…” a “Instalar app”.
+5. Tocá “Instalar app” y confirmá en la ventana de Android.
+
+Esta versión corrige el manifiesto, el service worker y la caché del navegador.
