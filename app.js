@@ -10,7 +10,7 @@ let recoveryScreenActive = false;
 function esc(v=''){return String(v).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
 function iso(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
 function fmt(d){return d.toLocaleDateString('es-AR')}
-function getPeriod(ref){const y=ref.getFullYear(),m=ref.getMonth(),day=ref.getDate();const start=day>=20?new Date(y,m,20):new Date(y,m-1,20);const end=new Date(start.getFullYear(),start.getMonth()+1,19);return {start,end}}
+function getPeriod(ref){const y=ref.getFullYear(),m=ref.getMonth(),day=ref.getDate();const start=day>20?new Date(y,m,20):new Date(y,m-1,20);const end=new Date(start.getFullYear(),start.getMonth()+1,20);return {start,end}}
 function daysBetween(a,b){const out=[];for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1))out.push(new Date(d));return out}
 function configured(){return cfg.SUPABASE_URL?.startsWith('https://') && cfg.SUPABASE_ANON_KEY && !cfg.SUPABASE_ANON_KEY.includes('PEGAR_AQUI')}
 function recoveryMarkerInUrl(){const u=window.location.href;return u.includes('type=recovery')||u.includes('flow=reset_password')}
