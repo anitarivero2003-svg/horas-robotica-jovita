@@ -6,6 +6,7 @@ let profiles = [];
 let entries = [];
 let currentPeriod = getPeriod(new Date());
 let recoveryScreenActive = false;
+const FILA_MENSUAL_FIJA = { nombre: 'Bruno', texto: 'cobra por mes' };
 
 function esc(v=''){return String(v).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]))}
 function iso(d){const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
@@ -124,7 +125,8 @@ function renderDashboard(){
 function renderAdminTable(days,map){
   const head=days.map(d=>`<th>${d.getDate()}</th>`).join('');
   const rows=profiles.map(p=>{let total=0;const cells=days.map(d=>{const v=map.get(`${p.id}|${iso(d)}`);total+=Number(v||0);return `<td>${v!==undefined?String(v).replace('.',','):''}</td>`}).join('');return `<tr><td>${esc(p.nombre)}</td>${cells}<td><b>${total.toLocaleString('es-AR')}</b></td></tr>`}).join('');
-  return `<div class="section">Planilla completa</div><div class="toolbar"><button id="exportExcel" class="btn btn-secondary">Descargar Excel</button></div><div class="table-box"><table class="hours-table"><thead><tr><th>Nombre</th>${head}<th>Total</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const filaMensual=`<tr class="monthly-row"><td>${esc(FILA_MENSUAL_FIJA.nombre)}</td>${days.map(()=>'<td></td>').join('')}<td><b>${esc(FILA_MENSUAL_FIJA.texto)}</b></td></tr>`;
+  return `<div class="section">Planilla completa</div><div class="toolbar"><button id="exportExcel" class="btn btn-secondary">Descargar Excel</button></div><div class="table-box"><table class="hours-table"><thead><tr><th>Nombre</th>${head}<th>Total</th></tr></thead><tbody>${rows}${filaMensual}</tbody></table></div>`;
 }
 
 function openModal(date,value){
@@ -137,6 +139,10 @@ function openModal(date,value){
 function exportExcel(){
   const days=daysBetween(currentPeriod.start,currentPeriod.end),map=entryMap();
   const data=profiles.map(p=>{const row={Nombre:p.nombre};let total=0;days.forEach(d=>{const v=map.get(`${p.id}|${iso(d)}`);row[`${d.getDate()}/${d.getMonth()+1}`]=v??'';total+=Number(v||0)});row.Total=total;return row});
+  const filaMensual={Nombre:FILA_MENSUAL_FIJA.nombre};
+  days.forEach(d=>{filaMensual[`${d.getDate()}/${d.getMonth()+1}`]=''});
+  filaMensual.Total=FILA_MENSUAL_FIJA.texto;
+  data.push(filaMensual);
   const ws=XLSX.utils.json_to_sheet(data);ws['!freeze']={xSplit:1,ySplit:1};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Horas');
   XLSX.writeFile(wb,`Horas_${iso(currentPeriod.start)}_al_${iso(currentPeriod.end)}.xlsx`);
