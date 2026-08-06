@@ -1,3 +1,63 @@
+# Código completo — actualización PWA de Horas Robótica Jovita
+
+## `index.html`
+
+```html
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+  <title>Horas Robótica Jovita</title>
+  <meta name="description" content="Registro privado de horas trabajadas de la Escuela de Robótica Jovita." />
+  <meta name="application-name" content="Horas Robótica Jovita" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="background-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Integración como aplicación en Android y navegadores Chromium. -->
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- Compatibilidad de instalación en iPhone/iPad. -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Horas Jovita" />
+
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="icon" href="/icon-512.png" sizes="512x512" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main id="app" class="app-shell"></main>
+
+  <!-- Solo se muestra cuando Chrome confirma que la PWA puede instalarse. -->
+  <button id="installAppButton" class="install-fab" type="button" hidden>
+    <span aria-hidden="true">📲</span>
+    <span>INSTALAR APLICACIÓN</span>
+  </button>
+
+  <div id="networkNotice" class="network-notice" role="status" hidden>
+    Sin conexión. Podés abrir la app, pero necesitás internet para guardar horas.
+  </div>
+
+  <noscript>Necesitás activar JavaScript para usar Horas Robótica Jovita.</noscript>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
+```
+
+## `app.js`
+
+```javascript
 const app = document.getElementById('app');
 const cfg = window.APP_CONFIG || {};
 const installButton = document.getElementById('installAppButton');
@@ -754,3 +814,252 @@ async function exportExcel() {
 }
 
 init();
+```
+
+## `manifest.webmanifest`
+
+```json
+{
+  "id": "/",
+  "name": "Horas Robótica Jovita",
+  "short_name": "Horas Jovita",
+  "description": "Registro privado de horas trabajadas de la Escuela de Robótica Jovita.",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#7c3aed",
+  "background_color": "#ffffff",
+  "prefer_related_applications": false,
+  "categories": [
+    "business",
+    "productivity",
+    "education"
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
+```
+
+## `sw.js`
+
+```javascript
+const CACHE_VERSION = 'horas-robotica-jovita-v12';
+
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/styles.css',
+  '/app.js',
+  '/config.js',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/apple-touch-icon.png'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key !== CACHE_VERSION)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+
+  // Los datos de Supabase y otros servicios externos siempre continúan por red.
+  if (url.origin !== self.location.origin) return;
+
+  // Para navegación usamos red primero y la portada en caché como respaldo.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put('/index.html', copy));
+          }
+          return response;
+        })
+        .catch(async () => (
+          (await caches.match('/index.html')) ||
+          (await caches.match('/')) ||
+          Response.error()
+        ))
+    );
+    return;
+  }
+
+  // Archivos estáticos: respuesta rápida desde caché y actualización en segundo plano.
+  event.respondWith((async () => {
+    const cachedResponse = await caches.match(request);
+    const networkRequest = fetch(request)
+      .then(async (response) => {
+        if (response.ok) {
+          const cache = await caches.open(CACHE_VERSION);
+          await cache.put(request, response.clone());
+        }
+        return response;
+      })
+      .catch(() => null);
+
+    if (cachedResponse) {
+      event.waitUntil(networkRequest);
+      return cachedResponse;
+    }
+
+    return (await networkRequest) || Response.error();
+  })());
+});
+```
+
+## `vercel.json`
+
+```json
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/app.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/styles.css",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/css; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/config.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
+```

@@ -1,0 +1,20 @@
+VERIFICACIÓN PWA — HORAS ROBÓTICA JOVITA
+
+Resultado de la prueba automatizada con Chromium en un perfil normal:
+- HTTP: 200
+- Contexto seguro: sí
+- Manifest leído por Chrome: sí
+- Errores del manifest: ninguno
+- Service Worker activo y controlando la página: sí
+- Errores de instalabilidad de Chrome: ninguno
+- Evento beforeinstallprompt: activado
+- Botón de instalación: habilitado por Chrome
+- Íconos: 192x192 y 512x512 válidos
+- display: standalone
+- start_url: /
+- Sintaxis de app.js y sw.js: válida
+- JSON de manifest.webmanifest y vercel.json: válido
+- La interfaz de la aplicación se renderizó correctamente en la prueba
+
+La compilación queda reconocida por Chromium como PWA instalable.
+Para repetir la verificación después de subirla a Vercel: Chrome > Herramientas para desarrolladores > Application > Manifest y Service Workers.

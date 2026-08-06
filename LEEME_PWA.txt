@@ -1,0 +1,23 @@
+HORAS ROBÓTICA JOVITA — ACTUALIZACIÓN PWA INSTALABLE
+
+Archivos que deben subirse a la RAÍZ del repositorio de GitHub:
+- index.html
+- app.js
+- styles.css
+- config.js
+- manifest.webmanifest
+- sw.js
+- vercel.json
+- icon-192.png
+- icon-512.png
+- icon-maskable-512.png
+- apple-touch-icon.png
+
+No subas la carpeta contenedora: seleccioná los archivos que están dentro.
+Vercel volverá a desplegar automáticamente al confirmar el cambio en GitHub.
+
+Después del despliegue, abrí Chrome en la computadora y verificá:
+DevTools > Application > Manifest
+DevTools > Application > Service Workers
+
+En Android, abrí el enlace directamente en Chrome. Cuando Chrome confirme la instalabilidad, aparecerá “Instalar aplicación” en el menú y también el botón nativo de la página.

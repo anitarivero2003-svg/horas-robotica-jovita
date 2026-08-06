@@ -1,70 +1,88 @@
-const CACHE_NAME = 'horas-jovita-v11';
-const CORE_FILES = [
+const CACHE_VERSION = 'horas-robotica-jovita-v12';
+
+const APP_SHELL = [
   '/',
   '/index.html',
-  '/styles.css?v=11',
-  '/app.js?v=11',
-  '/config.js?v=11',
-  '/manifest.webmanifest?v=11',
-  '/icon-192.png?v=11'
+  '/styles.css',
+  '/app.js',
+  '/config.js',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await Promise.allSettled(
-      CORE_FILES.map(async (url) => {
-        const response = await fetch(url, { cache: 'reload' });
-        if (response.ok) await cache.put(url, response.clone());
-      })
-    );
-    await self.skipWaiting();
-  })());
+  event.waitUntil(
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const names = await caches.keys();
-    await Promise.all(
-      names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
-    );
-    await self.clients.claim();
-  })());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key !== CACHE_VERSION)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  // Los datos de Supabase y otros servicios externos siempre continúan por red.
   if (url.origin !== self.location.origin) return;
 
+  // Para navegación usamos red primero y la portada en caché como respaldo.
   if (request.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(request, { cache: 'no-store' });
-        const cache = await caches.open(CACHE_NAME);
-        cache.put('/', fresh.clone());
-        return fresh;
-      } catch {
-        return (await caches.match('/')) || Response.error();
-      }
-    })());
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put('/index.html', copy));
+          }
+          return response;
+        })
+        .catch(async () => (
+          (await caches.match('/index.html')) ||
+          (await caches.match('/')) ||
+          Response.error()
+        ))
+    );
     return;
   }
 
+  // Archivos estáticos: respuesta rápida desde caché y actualización en segundo plano.
   event.respondWith((async () => {
-    const cached = await caches.match(request);
-    const refresh = fetch(request, { cache: 'no-cache' })
+    const cachedResponse = await caches.match(request);
+    const networkRequest = fetch(request)
       .then(async (response) => {
         if (response.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(request, response.clone());
+          const cache = await caches.open(CACHE_VERSION);
+          await cache.put(request, response.clone());
         }
         return response;
       })
       .catch(() => null);
 
-    return cached || (await refresh) || Response.error();
+    if (cachedResponse) {
+      event.waitUntil(networkRequest);
+      return cachedResponse;
+    }
+
+    return (await networkRequest) || Response.error();
   })());
 });

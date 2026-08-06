@@ -1,0 +1,21 @@
+{
+  "test_engine": "Chromium via Chrome DevTools Protocol, persistent non-incognito profile",
+  "http_status": 200,
+  "secure_context": true,
+  "service_worker_controller": true,
+  "manifest_errors": [],
+  "installability_errors": [],
+  "beforeinstallprompt_triggered": true,
+  "manifest_name": "Horas Robótica Jovita",
+  "manifest_start_url": "/",
+  "manifest_display": "standalone",
+  "icons": {
+    "icon-192.png": "192x192 PNG",
+    "icon-512.png": "512x512 PNG",
+    "icon-maskable-512.png": "512x512 PNG"
+  },
+  "application_shell_rendered": true,
+  "javascript_syntax_valid": true,
+  "json_files_valid": true,
+  "business_logic_preserved": "Only the PWA/install section of app.js was replaced; Supabase, hours, privacy, Excel and password logic remain."
+}

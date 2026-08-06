@@ -1,0 +1,194 @@
+--- /mnt/data/repo_horas_actual/app.js	2026-08-06 18:46:32.876853728 +0000
++++ /mnt/data/horas-robotica-jovita-pwa/app.js	2026-08-06 18:49:46.456126811 +0000
+@@ -71,165 +71,56 @@
+     || window.navigator.standalone === true;
+ }
+ 
+-function isIOS() {
+-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+-}
+-
+-function isAndroid() {
+-  return /android/i.test(window.navigator.userAgent);
+-}
+-
+-function isInAppBrowser() {
+-  return /FBAN|FBAV|Instagram|Line|WhatsApp/i.test(window.navigator.userAgent);
+-}
+-
+-function authLayout({ title, subtitle, content, message = '', success = false }) {
+-  return `
+-    <section class="auth-wrap">
+-      <div class="auth-hero">
+-        <div class="brand-lockup">
+-          <img class="brand-logo" src="/icon-192.png" alt="" />
+-          <div>
+-            <span class="brand-kicker">Escuela de Robótica</span>
+-            <div class="brand-name">Jovita</div>
+-          </div>
+-        </div>
+-
+-        <div class="hero-copy">
+-          <h1>Las horas claras, simples y ordenadas.</h1>
+-          <p>Cada compañera carga lo suyo. Ana ve la planilla completa y descarga el Excel del período.</p>
+-          <div class="hero-pills">
+-            <span class="hero-pill">📅 Del 20 al 20</span>
+-            <span class="hero-pill">🔒 Datos privados</span>
+-            <span class="hero-pill">📊 Excel automático</span>
+-          </div>
+-        </div>
+-      </div>
+-
+-      <div class="auth-form">
+-        <img class="mini-logo" src="/icon-192.png" alt="" />
+-        <h1 class="title">${title}</h1>
+-        <p class="subtitle">${subtitle}</p>
+-        ${message ? `<div class="${success ? 'notice' : 'error'}">${esc(message)}</div>` : ''}
+-        ${content}
+-        <div class="auth-help">Horas Robótica Jovita · Acceso privado</div>
+-      </div>
+-    </section>
+-  `;
+-}
+-
+-function showInfoModal(title, bodyHtml) {
+-  const modal = document.createElement('div');
+-  modal.className = 'modal';
+-  modal.innerHTML = `
+-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+-      <h2>${esc(title)}</h2>
+-      ${bodyHtml}
+-      <button class="btn btn-primary" data-close-modal>ENTENDIDO</button>
+-    </div>
+-  `;
+-  document.body.appendChild(modal);
+-  const close = () => modal.remove();
+-  modal.querySelector('[data-close-modal]').onclick = close;
+-  modal.addEventListener('click', (event) => {
+-    if (event.target === modal) close();
+-  });
+-}
+-
+-function showInstallInstructions() {
+-  if (isIOS()) {
+-    showInfoModal('Guardar en el iPhone', `
+-      <p>Abrí la página con <b>Safari</b> y seguí estos pasos:</p>
+-      <ol class="install-steps">
+-        <li>Tocá <b>Compartir</b>.</li>
+-        <li>Elegí <b>Añadir a pantalla de inicio</b>.</li>
+-        <li>Tocá <b>Añadir</b>.</li>
+-      </ol>
+-    `);
+-    return;
+-  }
+-
+-  if (isAndroid()) {
+-    const browserNote = isInAppBrowser()
+-      ? '<p><b>Primero:</b> abrí el enlace en Google Chrome, no dentro de WhatsApp.</p>'
+-      : '';
+-
+-    showInfoModal('Guardar en el celular', `
+-      ${browserNote}
+-      <p>No hace falta esperar. En Chrome:</p>
+-      <ol class="install-steps">
+-        <li>Tocá los tres puntitos <b>⋮</b>.</li>
+-        <li>Entrá en <b>Instalar y crear acceso directo</b>.</li>
+-        <li>Elegí <b>Instalar</b> o <b>Crear acceso directo</b>.</li>
+-      </ol>
+-      <p>Cuando Chrome habilite la instalación directa, este mismo botón abrirá la ventana de instalación automáticamente.</p>
+-    `);
+-    return;
+-  }
++function updateInstallButton() {
++  if (!installButton) return;
+ 
+-  showInfoModal('Guardar la aplicación', `
+-    <p>Abrí el menú del navegador y elegí <b>Instalar aplicación</b> o <b>Crear acceso directo</b>.</p>
+-  `);
++  // El botón aparece únicamente cuando Chrome entrega el evento nativo de instalación.
++  installButton.hidden = isStandalone() || !deferredInstallPrompt;
++  installButton.disabled = false;
+ }
+ 
+ async function requestInstall() {
+-  if (isStandalone()) {
+-    showInfoModal('Ya está instalada', '<p>La aplicación ya está abierta desde el ícono del celular.</p>');
+-    return;
+-  }
+-
+-  if (!deferredInstallPrompt) {
+-    showInstallInstructions();
++  if (!deferredInstallPrompt || isStandalone()) {
++    updateInstallButton();
+     return;
+   }
+ 
++  installButton.disabled = true;
+   deferredInstallPrompt.prompt();
+-  const choice = await deferredInstallPrompt.userChoice;
+-  if (choice.outcome === 'accepted') {
++
++  try {
++    await deferredInstallPrompt.userChoice;
++  } finally {
+     deferredInstallPrompt = null;
+     updateInstallButton();
+   }
+ }
+ 
+-function updateInstallButton() {
+-  if (!installButton) return;
+-
+-  const installed = isStandalone();
+-  installButton.hidden = installed;
+-  installButton.disabled = false;
+-
+-  const label = installButton.querySelector('span:last-child');
+-  if (label) {
+-    label.textContent = deferredInstallPrompt
+-      ? 'INSTALAR AHORA'
+-      : 'GUARDAR EN EL CELULAR';
+-  }
+-
+-  installButton.classList.toggle('is-ready', Boolean(deferredInstallPrompt));
+-}
+-
+ function updateNetworkNotice() {
+   if (!networkNotice) return;
+   networkNotice.hidden = window.navigator.onLine;
+ }
+ 
+ async function registerServiceWorker() {
+-  if (!('serviceWorker' in navigator)) return;
++  if (!('serviceWorker' in navigator)) return null;
+ 
+   try {
+-    const registration = await navigator.serviceWorker.register('/sw.js?v=11', {
++    const registration = await navigator.serviceWorker.register('/sw.js', {
+       scope: '/',
+       updateViaCache: 'none'
+     });
+ 
+-    // Busca actualizaciones sin recargar la página ni hacer esperar a la usuaria.
++    await navigator.serviceWorker.ready;
+     registration.update().catch(() => {});
++    return registration;
+   } catch (error) {
+     console.warn('No se pudo registrar el service worker:', error);
++    return null;
+   }
+ }
+ 
+ window.addEventListener('beforeinstallprompt', (event) => {
++  // Evita el aviso automático y habilita nuestro botón solo cuando la app es instalable.
+   event.preventDefault();
+   deferredInstallPrompt = event;
+   updateInstallButton();
+@@ -240,6 +131,7 @@
+   updateInstallButton();
+ });
+ 
++window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButton);
+ window.addEventListener('online', updateNetworkNotice);
+ window.addEventListener('offline', updateNetworkNotice);
+ installButton?.addEventListener('click', requestInstall);
