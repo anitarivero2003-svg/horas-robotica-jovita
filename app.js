@@ -365,6 +365,48 @@ async function saveNewPassword() {
   renderLogin('Contraseña actualizada. Ya podés ingresar.', true);
 }
 
+
+function realCurrentPeriod() {
+  return getPeriod(new Date());
+}
+
+function isShowingCurrentPeriod() {
+  return iso(currentPeriod.start) === iso(realCurrentPeriod().start);
+}
+
+function shiftShownPeriod(months) {
+  const start = new Date(
+    currentPeriod.start.getFullYear(),
+    currentPeriod.start.getMonth() + months,
+    21
+  );
+  currentPeriod = {
+    start,
+    end: new Date(start.getFullYear(), start.getMonth() + 1, 20)
+  };
+}
+
+async function showPreviousPeriod() {
+  shiftShownPeriod(-1);
+  await loadApp(profile.id);
+}
+
+async function showNextPeriod() {
+  const candidate = new Date(
+    currentPeriod.start.getFullYear(),
+    currentPeriod.start.getMonth() + 1,
+    21
+  );
+  if (candidate > realCurrentPeriod().start) return;
+  shiftShownPeriod(1);
+  await loadApp(profile.id);
+}
+
+async function showCurrentPeriod() {
+  currentPeriod = realCurrentPeriod();
+  await loadApp(profile.id);
+}
+
 async function loadApp(userId) {
   if (recoveryScreenActive) return;
 
@@ -463,11 +505,29 @@ function renderDashboard() {
       <button id="logout" class="btn btn-danger" type="button">Salir</button>
     </header>
 
+    <section class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">
+        <div>
+          <h2 class="section">Período de horas</h2>
+          <p class="section-note">
+            Mostrando <b>${fmt(currentPeriod.start)}</b> al <b>${fmt(currentPeriod.end)}</b>.
+          </p>
+        </div>
+        <div class="toolbar" style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button id="previousPeriod" class="btn btn-soft" type="button">← Período anterior</button>
+          ${!isShowingCurrentPeriod() ? `
+            <button id="nextPeriod" class="btn btn-soft" type="button">Período siguiente →</button>
+            <button id="goCurrentPeriod" class="btn btn-primary" type="button">Ir al período actual</button>
+          ` : ''}
+        </div>
+      </div>
+    </section>
+
     <section class="summary">
       <div>
         <div class="summary-label"><span aria-hidden="true">⏱️</span> Mis horas</div>
         <strong>${ownTotal.toLocaleString('es-AR')} h</strong>
-        <div class="summary-period">Total acumulado del período actual</div>
+        <div class="summary-period">Total acumulado del período mostrado</div>
       </div>
       <img class="summary-art" src="/icon-192.png" alt="" />
     </section>
@@ -490,6 +550,10 @@ function renderDashboard() {
       openHoursModal(button.dataset.date, map.get(`${profile.id}|${button.dataset.date}`));
     };
   });
+
+  document.getElementById('previousPeriod')?.addEventListener('click', showPreviousPeriod);
+  document.getElementById('nextPeriod')?.addEventListener('click', showNextPeriod);
+  document.getElementById('goCurrentPeriod')?.addEventListener('click', showCurrentPeriod);
 
   document.getElementById('logout').onclick = async () => {
     await client.auth.signOut();
@@ -538,7 +602,7 @@ function renderAdminTable(days, map) {
         </div>
         <div class="toolbar">
           <button id="exportExcel" class="btn btn-secondary" type="button">
-            📊 Descargar Excel
+            📊 Descargar Excel de este período
           </button>
         </div>
       </div>
@@ -701,7 +765,7 @@ async function exportExcel() {
   } catch (error) {
     if (button) {
       button.disabled = false;
-      button.innerHTML = originalText || '📊 Descargar Excel';
+      button.innerHTML = originalText || '📊 Descargar Excel de este período';
     }
     alert(error.message);
     return;
@@ -749,7 +813,7 @@ async function exportExcel() {
 
   if (button) {
     button.disabled = false;
-    button.innerHTML = originalText || '📊 Descargar Excel';
+    button.innerHTML = originalText || '📊 Descargar Excel de este período';
   }
 }
 
